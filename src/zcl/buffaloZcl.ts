@@ -116,6 +116,16 @@ interface GdpAttributeReport {
     attributes: KeyValue;
 }
 
+interface GdpWriteAttributes {
+    commandID: number;
+    options: number;
+    manufacturerID: number;
+    clusterID: number
+    attributeID: number
+    attributeDataType: number
+    attributeValue: number
+}
+
 interface ExtensionFieldSet {
     clstId: number;
     len: number;
@@ -427,7 +437,9 @@ class BuffaloZcl extends Buffalo {
         }
     }
 
-    private writeGdpFrame(value: GdpCommissioningReply | GdpChannelConfiguration | GdpCustomReply): void{
+    private writeGdpFrame(value: GdpCommissioningReply | GdpChannelConfiguration | 
+                                 GdpCustomReply | GdpWriteAttributes): void{
+
         if (value.commandID == 0xF0) { // Commissioning Reply
             const v = <GdpCommissioningReply> value;
 
@@ -463,6 +475,31 @@ class BuffaloZcl extends Buffalo {
             if (hasFrameCounter) {
                 this.writeUInt32(v.frameCounter);
             }
+
+        } else if (value.commandID == 0xF1) { // Write Attributes 
+            const v = <GdpWriteAttributes> value;
+
+            const multiRecordsPresent = v.options & (1 << 0);
+            const manufacturerFieldPresent = v.options & (1 << 1);
+
+            this.writeUInt8(10); // Length
+
+            // Write Attributes Frame
+            this.writeUInt8(v.options & 0b00000010); // Force to single records for now, also force reserved bits to 0
+            
+            if (manufacturerFieldPresent) {
+                this.writeUInt16(v.manufacturerID); 
+            }
+
+            // Write Cluster Record
+            this.writeUInt16(v.clusterID);
+            this.writeUInt8(4); // Attribute record list length
+
+            // Write Attribute Record
+            this.writeUInt16(v.attributeID);
+            this.writeUInt8(v.attributeDataType);
+            this.writeUInt8(v.attributeValue);
+        
         } else if (value.commandID == 0xF3) { // Channel configuration
             const v = <GdpChannelConfiguration> value;
             this.writeUInt8(1);
